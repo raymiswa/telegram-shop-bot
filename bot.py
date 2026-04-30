@@ -5,7 +5,6 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
-import requests
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -18,7 +17,6 @@ from telegram.ext import (
 load_dotenv()
 
 DB_PATH = "shop.db"
-USDT_TRC20_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
 
 
 @dataclass
@@ -28,14 +26,11 @@ class Settings:
     product_name: str
     product_price: float
     pickup_text: str
-    check_interval: int
 
 
 def get_settings() -> Settings:
     token = os.getenv("BOT_TOKEN", "").strip()
     wallet = os.getenv("TRC20_WALLET", "").strip()
-    if not token or not wallet:
-        raise RuntimeError("Set BOT_TOKEN and TRC20_WALLET in .env")
 
     return Settings(
         bot_token=token,
@@ -43,30 +38,27 @@ def get_settings() -> Settings:
         product_name=os.getenv("PRODUCT_NAME", "Physical product"),
         product_price=float(os.getenv("PRODUCT_PRICE_USDT", "10.0")),
         pickup_text=os.getenv("PICKUP_TEXT", "Оплата получена. Где забрать: ..."),
-        check_interval=int(os.getenv("CHECK_INTERVAL_SEC", "20")),
     )
 
 
-def db() -> sqlite3.Connection:
+def db():
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     return con
 
 
-def init_db() -> None:
+def init_db():
     con = db()
     con.execute(
         """
         CREATE TABLE IF NOT EXISTS orders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
+            user_id INTEGER,
             username TEXT,
-            product_name TEXT NOT NULL,
-            amount_usdt REAL NOT NULL,
-            status TEXT NOT NULL DEFAULT 'pending',
-            created_at INTEGER NOT NULL,
-            paid_at INTEGER,
-            tx_id TEXT
+            product_name TEXT,
+            amount_usdt REAL,
+            status TEXT,
+            created_at INTEGER
         )
         """
     )
@@ -74,7 +66,7 @@ def init_db() -> None:
     con.close()
 
 
-def create_order(user_id: int, username: Optional[str], product: str, amount: float) -> int:
+def create_order(user_id, username, product, amount):
     con = db()
     cur = con.execute(
         """
@@ -89,116 +81,78 @@ def create_order(user_id: int, username: Optional[str], product: str, amount: fl
     return oid
 
 
-def get_pending_orders():
+def get_last_order(user_id):
     con = db()
-    rows = con.execute("SELECT * FROM orders WHERE status='pending'").fetchall()
+    order = con.execute(
+        "SELECT * FROM orders WHERE user_id=? AND status='pending' ORDER BY id DESC LIMIT 1",
+        (user_id,),
+    ).fetchone()
     con.close()
-    return rows
+    return order
 
 
-def mark_paid(order_id: int, tx_id: str) -> None:
+def mark_paid(order_id):
     con = db()
     con.execute(
-        "UPDATE orders SET status='paid', paid_at=?, tx_id=? WHERE id=?",
-        (int(time.time()), tx_id, order_id),
+        "UPDATE orders SET status='paid' WHERE id=?",
+        (order_id,),
     )
     con.commit()
     con.close()
 
 
-def fetch_recent_usdt_trc20_transfers(wallet: str):
-    url = "https://apilist.tronscanapi.com/api/token_trc20/transfers"
-    params = {
-        "relatedAddress": wallet,
-        "contract_address": USDT_TRC20_CONTRACT,
-        "limit": 50,
-        "start": 0,
-        "sort": "-timestamp",
-    }
-    r = requests.get(url, params=params, timeout=20)
-    r.raise_for_status()
-    data = r.json().get("token_transfers", [])
-    return data
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🛒 Купить", callback_data="buy")],
+        [InlineKeyboardButton("✅ Я оплатил (тест)", callback_data="test_paid")]
+    ])
 
-
-def transfer_matches_order(transfer: dict, order, settings) -> bool:
-    to_addr = transfer.get("to_address", "")
-    raw_amount = transfer.get("quant", "0")
-    decimals = int(transfer.get("tokenInfo", {}).get("tokenDecimal", 6))
-    amount = float(raw_amount) / (10 ** decimals)
-    ts_ms = int(transfer.get("block_ts", 0))
-    order_created_ms = int(order["created_at"]) * 1000
-
-    return (
-        to_addr == settings.wallet
-        and amount >= float(order["amount_usdt"])
-        and ts_ms >= order_created_ms
-    )
-
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    kb = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("🛒 Купить", callback_data="buy")]]
-    )
     await update.message.reply_text(
-        f"Товар: {settings.product_name}\nЦена: {settings.product_price:.2f} USDT (TRC20)",
-        reply_markup=kb,
+        f"Товар: {settings.product_name}\nЦена: {settings.product_price} USDT",
+        reply_markup=kb
     )
 
 
-async def on_buy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def on_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    user = q.from_user
 
+    user = q.from_user
     order_id = create_order(user.id, user.username, settings.product_name, settings.product_price)
 
     await q.message.reply_text(
-        "Заказ создан ✅\n"
-        f"Order ID: {order_id}\n"
-        f"Оплатите: {settings.product_price:.2f} USDT (TRC20)\n"
-        f"Кошелек: `{settings.wallet}`\n\n"
-        "После подтверждения транзакции вы получите сообщение с местом выдачи.",
-        parse_mode="Markdown",
+        f"Заказ создан ✅\nOrder ID: {order_id}\n\n"
+        f"Оплатите: {settings.product_price} USDT\n"
+        f"(это тест, можно не платить)"
     )
 
 
-async def payment_watcher(app: Application) -> None:
-    while True:
-        try:
-            transfers = fetch_recent_usdt_trc20_transfers(settings.wallet)
-            pending = get_pending_orders()
-            for order in pending:
-                for t in transfers:
-                    if transfer_matches_order(t, order, settings):
-                        tx_id = t.get("transaction_id", "unknown")
-                        mark_paid(order["id"], tx_id)
-                        await app.bot.send_message(
-                            chat_id=order["user_id"],
-                            text=(
-                                "Оплата подтверждена ✅\n"
-                                f"TX: {tx_id}\n\n"
-                                f"{settings.pickup_text}"
-                            ),
-                        )
-                        break
-        except Exception as e:
-            print("watcher error:", e)
+async def test_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
 
-        await asyncio.sleep(settings.check_interval)
+    order = get_last_order(q.from_user.id)
 
+    if not order:
+        await q.message.reply_text("Нет активного заказа")
+        return
 
-async def post_init(app: Application) -> None:
-    app.create_task(payment_watcher(app))
+    mark_paid(order["id"])
+
+    await q.message.reply_text(
+        "ТЕСТОВАЯ ОПЛАТА ПРОШЛА ✅\n\n" + settings.pickup_text
+    )
 
 
 if __name__ == "__main__":
     settings = get_settings()
     init_db()
 
-    app = Application.builder().token(settings.bot_token).post_init(post_init).build()
+    app = Application.builder().token(settings.bot_token).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(on_buy, pattern="^buy$"))
+    app.add_handler(CallbackQueryHandler(test_paid, pattern="^test_paid$"))
 
     print("Bot is running...")
     app.run_polling()
