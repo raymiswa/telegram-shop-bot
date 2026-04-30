@@ -95,7 +95,7 @@ def create_order(user_id):
     return oid, total
 
 
-# ====== UI ======
+# ===== UI =====
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([
@@ -103,69 +103,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🧺 Корзина", callback_data="cart")]
     ])
 
-    await update.message.reply_text("Добро пожаловать!", reply_markup=kb)
-
-
-async def show_shop(q):
-    buttons = [
-        [InlineKeyboardButton(f"{p['name']} — ${p['price']}/g", callback_data=f"p:{p['id']}")]
-        for p in PRODUCTS
-    ]
-
-    await q.message.edit_text(
-        "🛍 Каталог товаров:",
-        reply_markup=InlineKeyboardMarkup(buttons)
-    )
-
-
-async def show_product(q, pid):
-    p = PRODUCT_MAP[pid]
-
-    kb = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("1g", callback_data=f"add:{pid}:1"),
-            InlineKeyboardButton("2g", callback_data=f"add:{pid}:2"),
-            InlineKeyboardButton("5g", callback_data=f"add:{pid}:5"),
-        ],
-        [InlineKeyboardButton("⬅️ Назад", callback_data="shop")]
-    ])
-
-    try:
-        await q.message.delete()
-    except:
-        pass
-
-    await q.message.reply_photo(
-        p["img"],
-        caption=f"{p['name']}\n{p['desc']}",
-        reply_markup=kb
-    )
-
-
-async def show_cart(q, user_id):
-    rows = get_cart(user_id)
-
-    if not rows:
-        await q.message.edit_text("Корзина пуста")
-        return
-
-    text = "🧺 Корзина:\n"
-    total = 0
-
-    for r in rows:
-        p = PRODUCT_MAP[r["product_id"]]
-        subtotal = r["grams"] * p["price"]
-        total += subtotal
-        text += f"{p['name']} {r['grams']}g = ${subtotal}\n"
-
-    text += f"\nИтого: ${total}"
-
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Оформить", callback_data="checkout")],
-        [InlineKeyboardButton("⬅️ Назад", callback_data="shop")]
-    ])
-
-    await q.message.edit_text(text, reply_markup=kb)
+    await update.message.reply_text("🛍 Добро пожаловать в магазин!", reply_markup=kb)
 
 
 async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -175,35 +113,99 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = q.data
     uid = q.from_user.id
 
+    # 👇 ВСЕГДА отправляем новые сообщения
+
     if data == "shop":
-        await show_shop(q)
+        buttons = [
+            [InlineKeyboardButton(f"{p['name']} — ${p['price']}/g", callback_data=f"p:{p['id']}")]
+            for p in PRODUCTS
+        ]
+
+        await context.bot.send_message(
+            chat_id=uid,
+            text="🛍 Каталог товаров:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
 
     elif data.startswith("p:"):
-        await show_product(q, int(data.split(":")[1]))
+        pid = int(data.split(":")[1])
+        p = PRODUCT_MAP[pid]
+
+        kb = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("1g", callback_data=f"add:{pid}:1"),
+                InlineKeyboardButton("2g", callback_data=f"add:{pid}:2"),
+                InlineKeyboardButton("5g", callback_data=f"add:{pid}:5"),
+            ],
+            [InlineKeyboardButton("🧺 Корзина", callback_data="cart")]
+        ])
+
+        await context.bot.send_photo(
+            chat_id=uid,
+            photo=p["img"],
+            caption=f"{p['name']}\n{p['desc']}",
+            reply_markup=kb
+        )
 
     elif data.startswith("add:"):
         _, pid, grams = data.split(":")
         add_cart(uid, int(pid), int(grams))
-        await q.message.reply_text("✅ Добавлено в корзину")
+
+        await context.bot.send_message(
+            chat_id=uid,
+            text="✅ Добавлено в корзину"
+        )
 
     elif data == "cart":
-        await show_cart(q, uid)
+        rows = get_cart(uid)
+
+        if not rows:
+            await context.bot.send_message(chat_id=uid, text="🧺 Корзина пуста")
+            return
+
+        text = "🧺 Корзина:\n"
+        total = 0
+
+        for r in rows:
+            p = PRODUCT_MAP[r["product_id"]]
+            subtotal = r["grams"] * p["price"]
+            total += subtotal
+            text += f"{p['name']} {r['grams']}g = ${subtotal}\n"
+
+        text += f"\n💰 Итого: ${total}"
+
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🧾 Оформить заказ", callback_data="checkout")]
+        ])
+
+        await context.bot.send_message(
+            chat_id=uid,
+            text=text,
+            reply_markup=kb
+        )
 
     elif data == "checkout":
         res = create_order(uid)
+
         if not res:
-            await q.message.edit_text("Корзина пуста")
+            await context.bot.send_message(chat_id=uid, text="Корзина пуста")
             return
 
         oid, total = res
 
-        await q.message.edit_text(f"Заказ #{oid}\nСумма: ${total}\n\nЖдите подтверждения")
+        await context.bot.send_message(
+            chat_id=uid,
+            text=f"✅ Заказ #{oid} создан\n💰 Сумма: ${total}\n\nОжидайте подтверждения"
+        )
 
 
-# ====== RUN ======
+# ===== RUN =====
 
 if __name__ == "__main__":
     token = os.getenv("BOT_TOKEN")
+
+    if not token:
+        raise RuntimeError("Нет BOT_TOKEN")
 
     init_db()
 
