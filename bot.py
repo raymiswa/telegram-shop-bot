@@ -1,6 +1,4 @@
-import os
 import logging
-from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from telegram.request import HTTPXRequest
@@ -8,9 +6,8 @@ from telegram.request import HTTPXRequest
 # ===== ЛОГИ =====
 logging.basicConfig(level=logging.INFO)
 
-load_dotenv()
-
-TOKEN = os.getenv("BOT_TOKEN")
+# 🔥 ВСТАВЬ СЮДА СВОЙ ТОКЕН
+TOKEN = "8061201371:AAEHogHvhKiWYqjdTEt6QNl3RI8lohM4c4k"
 
 # ===== ТОВАРЫ =====
 PRODUCTS = [
@@ -41,17 +38,11 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print("CLICK:", data)
 
     try:
-        # ===== МАГАЗИН =====
         if data == "shop":
-            keyboard = []
-
-            for p in PRODUCTS:
-                keyboard.append([
-                    InlineKeyboardButton(
-                        f"{p['name']} — ${p['price']}",
-                        callback_data=f"product_{p['id']}"
-                    )
-                ])
+            keyboard = [
+                [InlineKeyboardButton(f"{p['name']} — ${p['price']}", callback_data=f"product_{p['id']}")]
+                for p in PRODUCTS
+            ]
 
             await context.bot.send_message(
                 chat_id=user_id,
@@ -59,7 +50,6 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
 
-        # ===== ТОВАР =====
         elif data.startswith("product_"):
             pid = int(data.split("_")[1])
             product = next(p for p in PRODUCTS if p["id"] == pid)
@@ -74,7 +64,6 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
 
-        # ===== ПОКУПКА =====
         elif data.startswith("buy_"):
             await context.bot.send_message(
                 chat_id=user_id,
@@ -83,13 +72,12 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         print("ERROR:", e)
-
         await context.bot.send_message(
             chat_id=user_id,
             text=f"Ошибка: {e}"
         )
 
-# ===== МЕНЮ TELEGRAM =====
+# ===== МЕНЮ =====
 async def set_menu(app):
     await app.bot.set_my_commands([
         BotCommand("start", "Запустить бота"),
@@ -97,10 +85,6 @@ async def set_menu(app):
 
 # ===== ЗАПУСК =====
 if __name__ == "__main__":
-    if not TOKEN:
-        raise RuntimeError("Нет BOT_TOKEN")
-
-    # 🔥 ФИКСЫ для Railway + таймауты
     request = HTTPXRequest(
         proxy=None,
         connect_timeout=30.0,
@@ -118,8 +102,4 @@ if __name__ == "__main__":
 
     print("Bot started...")
 
-    app.run_polling(
-        drop_pending_updates=True,
-        timeout=30,
-        read_timeout=30,
-    )
+    app.run_polling(drop_pending_updates=True)
