@@ -1,7 +1,12 @@
 import os
+import logging
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.request import HTTPXRequest
+
+# ===== ЛОГИ =====
+logging.basicConfig(level=logging.INFO)
 
 load_dotenv()
 
@@ -14,17 +19,18 @@ PRODUCTS = [
     {"id": 3, "name": "Platinum", "price": 30},
 ]
 
-# ===== START =====
+# ===== /start =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("🛒 Магазин", callback_data="shop")]
     ]
+
     await update.message.reply_text(
         "Добро пожаловать!",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# ===== CALLBACK =====
+# ===== КНОПКИ =====
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -32,12 +38,13 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     user_id = query.from_user.id
 
-    print("CLICK:", data)  # 🔥 лог в Railway
+    print("CLICK:", data)  # 👈 ключевой лог
 
     try:
         # ===== МАГАЗИН =====
         if data == "shop":
             keyboard = []
+
             for p in PRODUCTS:
                 keyboard.append([
                     InlineKeyboardButton(
@@ -76,15 +83,16 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         print("ERROR:", e)
+
         await context.bot.send_message(
             chat_id=user_id,
             text=f"Ошибка: {e}"
         )
 
-# ===== МЕНЮ В TELEGRAM =====
+# ===== МЕНЮ TELEGRAM =====
 async def set_menu(app):
     await app.bot.set_my_commands([
-        BotCommand("start", "Запуск бота"),
+        BotCommand("start", "Запустить бота"),
     ])
 
 # ===== ЗАПУСК =====
@@ -92,7 +100,10 @@ if __name__ == "__main__":
     if not TOKEN:
         raise RuntimeError("Нет BOT_TOKEN")
 
-    app = Application.builder().token(TOKEN).build()
+    # 🔥 ФИКС для Railway
+    request = HTTPXRequest(proxy=None)
+
+    app = Application.builder().token(TOKEN).request(request).build()
 
     app.post_init = set_menu
 
@@ -100,4 +111,6 @@ if __name__ == "__main__":
     app.add_handler(CallbackQueryHandler(handle_buttons))
 
     print("Bot started...")
-    app.run_polling()
+
+    # 🔥 чистый запуск
+    app.run_polling(drop_pending_updates=True)
