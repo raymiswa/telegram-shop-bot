@@ -38,7 +38,7 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     user_id = query.from_user.id
 
-    print("CLICK:", data)  # 👈 ключевой лог
+    print("CLICK:", data)
 
     try:
         # ===== МАГАЗИН =====
@@ -100,8 +100,14 @@ if __name__ == "__main__":
     if not TOKEN:
         raise RuntimeError("Нет BOT_TOKEN")
 
-    # 🔥 ФИКС для Railway
-    request = HTTPXRequest(proxy=None)
+    # 🔥 ФИКСЫ для Railway + таймауты
+    request = HTTPXRequest(
+        proxy=None,
+        connect_timeout=30.0,
+        read_timeout=30.0,
+        write_timeout=30.0,
+        pool_timeout=30.0,
+    )
 
     app = Application.builder().token(TOKEN).request(request).build()
 
@@ -112,5 +118,8 @@ if __name__ == "__main__":
 
     print("Bot started...")
 
-    # 🔥 чистый запуск
-    app.run_polling(drop_pending_updates=True)
+    app.run_polling(
+        drop_pending_updates=True,
+        timeout=30,
+        read_timeout=30,
+    )
