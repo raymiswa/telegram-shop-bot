@@ -71,12 +71,11 @@ async def delete_category_handler(update: Update, context: ContextTypes.DEFAULT_
 async def add_category_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    # ИСПРАВЛЕНО: удаляем старое и отправляем новое
-    try:
-        await query.message.delete()
-    except:
-        pass
-    await query.message.reply_text("📝 Введите название новой категории:")
+    # Отправляем новое сообщение через context.bot
+    await context.bot.send_message(
+        chat_id=query.message.chat_id,
+        text="📝 Введите название новой категории:"
+    )
     return ADD_NAME
 
 
