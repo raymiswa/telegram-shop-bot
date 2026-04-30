@@ -29,7 +29,7 @@ TOKEN = os.getenv("BOT_TOKEN", "8061201371:AAEHogHvhKiWYqjdTEt6QNl3RI8lohM4c4k")
 PAYMENT_TOKEN = os.getenv("PAYMENT_TOKEN", "")  # Получи в @BotFather -> Payments
 
 # ID администраторов (ЗАМЕНИ НА СВОИ!)
-ADMINS = [123456789, 987654321]  # Узнать свой ID: @userinfobot
+ADMINS = [5473574709]  # Узнать свой ID: @userinfobot
 
 # Состояния для ConversationHandler
 ADDING_PRODUCT_NAME, ADDING_PRODUCT_DESC, ADDING_PRODUCT_PRICE, ADDING_PRODUCT_PHOTO, ADDING_PRODUCT_CATEGORY = range(5)
