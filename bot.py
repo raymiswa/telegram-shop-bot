@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from telegram.ext import Application
 
@@ -12,14 +11,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def main():
+def main():
     """Главная функция запуска бота"""
     if not BOT_TOKEN:
         raise ValueError("BOT_TOKEN не задан в .env")
-    
-    # Инициализация БД
-    await init_db()
-    logger.info("База данных инициализирована")
     
     # Создание приложения
     app = Application.builder().token(BOT_TOKEN).build()
@@ -30,11 +25,13 @@ async def main():
     logger.info("Хендлеры зарегистрированы")
     logger.info("Бот запущен")
     
-    # Запуск polling
-    await app.run_polling(drop_pending_updates=True)
+    # Запуск polling (без asyncio.run - сам управляет event loop)
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Бот остановлен")
+    # Инициализация БД синхронно
+    import asyncio
+    asyncio.get_event_loop().run_until_complete(init_db())
+    logger.info("База данных инициализирована")
+    
+    main()
