@@ -148,7 +148,11 @@ if __name__ == "__main__":
     settings = get_settings()
     init_db()
 
-    app = Application.builder().token(settings.bot_token).build()
+    from telegram.request import HTTPXRequest
+
+request = HTTPXRequest(proxy=None)
+
+app = Application.builder().token(settings.bot_token).request(request).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(on_buy, pattern="^buy$"))
