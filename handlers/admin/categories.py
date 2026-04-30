@@ -27,6 +27,7 @@ async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text, reply_markup=kb, parse_mode="Markdown")
 
 
+@admin_required
 async def category_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -44,6 +45,7 @@ async def category_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(text, reply_markup=category_actions_keyboard(cat), parse_mode="Markdown")
 
 
+@admin_required
 async def toggle_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -55,6 +57,7 @@ async def toggle_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_reply_markup(reply_markup=category_actions_keyboard(cat))
 
 
+@admin_required
 async def delete_category_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -64,10 +67,16 @@ async def delete_category_handler(update: Update, context: ContextTypes.DEFAULT_
     await query.edit_message_text("🗑 Категория удалена.")
 
 
+@admin_required
 async def add_category_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    await query.edit_message_text("Введите название новой категории:")
+    # ИСПРАВЛЕНО: удаляем старое и отправляем новое
+    try:
+        await query.message.delete()
+    except:
+        pass
+    await query.message.reply_text("📝 Введите название новой категории:")
     return ADD_NAME
 
 
@@ -94,6 +103,11 @@ async def add_category_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("❌ Добавление категории отменено.")
+    return ConversationHandler.END
+
+
 def register(app):
     conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(add_category_start, pattern="^admin_add_category$")],
@@ -108,7 +122,7 @@ def register(app):
                 MessageHandler(filters.TEXT & ~filters.COMMAND, add_category_desc),
             ],
         },
-        fallbacks=[],
+        fallbacks=[CommandHandler("cancel", cancel)],
     )
     app.add_handler(conv)
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^📁 Категории$"), show_categories))
