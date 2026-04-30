@@ -12,7 +12,7 @@ from telegram.request import HTTPXRequest
 load_dotenv()
 
 DB_PATH = "shop.db"
-ADMIN_IDS = [8061201371:AAEHogHvhKiWYqjdTEt6QNl3RI8lohM4c4k]  # <-- ВСТАВЬ СВОЙ TELEGRAM ID
+ADMIN_IDS = [5473574709]  # <-- ВСТАВЬ СВОЙ TELEGRAM ID
 PICKUP_ADDRESS = "📍 Адрес получения: ул. Примерная, 10"
 
 PRODUCTS: List[Dict] = [
