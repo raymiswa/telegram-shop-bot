@@ -1,21 +1,19 @@
 """
 Скрипт для добавления тестовых данных в базу
-Запусти один раз, потом удали
 """
 import asyncio
-from database.database import async_session
+from database.database import AsyncSessionLocal
 from database.models import Category, Product, PickupPoint, PaymentWallet
-from config import ADMIN_IDS
 
 async def init_default_data():
     """Добавить тестовые категории, товары и точку выдачи"""
     
-    async with async_session() as session:
+    async with AsyncSessionLocal() as session:
         # Проверяем есть ли уже данные
         from sqlalchemy import select
         result = await session.execute(select(Category))
         if result.scalar_one_or_none():
-            print("❌ Данные уже есть в базе. Скрипт не нужен.")
+            print("❌ Данные уже есть в базе.")
             return
         
         print("📦 Добавляю категории...")
@@ -116,7 +114,7 @@ async def init_default_data():
         # USDT кошелёк (тестовый)
         wallet = PaymentWallet(
             currency="usdt_trc20",
-            address="TXabc123def456ghi789jkl012mno345pqr",  # ЗАМЕНИ НА СВОЙ!
+            address="TXabc123def456ghi789jkl012mno345pqr",
             is_active=True
         )
         
@@ -129,8 +127,6 @@ async def init_default_data():
         print(f"📦 Товаров: 4")
         print(f"📍 Точек выдачи: 1")
         print(f"💎 USDT кошельков: 1")
-        print(f"\n👨‍💼 Админы: {ADMIN_IDS}")
-        print("\n✅ Теперь можешь тестировать магазин!")
 
 if __name__ == "__main__":
     from database.database import init_db
