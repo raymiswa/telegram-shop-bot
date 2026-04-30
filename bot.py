@@ -1,4 +1,3 @@
-import asyncio
 import os
 import sqlite3
 import time
@@ -13,6 +12,7 @@ from telegram.ext import (
     CommandHandler,
     ContextTypes,
 )
+from telegram.request import HTTPXRequest
 
 load_dotenv()
 
@@ -29,15 +29,12 @@ class Settings:
 
 
 def get_settings() -> Settings:
-    token = os.getenv("BOT_TOKEN", "").strip()
-    wallet = os.getenv("TRC20_WALLET", "").strip()
-
     return Settings(
-        bot_token=token,
-        wallet=wallet,
+        bot_token=os.getenv("BOT_TOKEN", "").strip(),
+        wallet=os.getenv("TRC20_WALLET", "").strip(),
         product_name=os.getenv("PRODUCT_NAME", "Physical product"),
         product_price=float(os.getenv("PRODUCT_PRICE_USDT", "10.0")),
-        pickup_text=os.getenv("PICKUP_TEXT", "Оплата получена. Где забрать: ..."),
+        pickup_text=os.getenv("PICKUP_TEXT", "Где забрать товар..."),
     )
 
 
@@ -49,8 +46,7 @@ def db():
 
 def init_db():
     con = db()
-    con.execute(
-        """
+    con.execute("""
         CREATE TABLE IF NOT EXISTS orders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -60,8 +56,7 @@ def init_db():
             status TEXT,
             created_at INTEGER
         )
-        """
-    )
+    """)
     con.commit()
     con.close()
 
@@ -148,11 +143,9 @@ if __name__ == "__main__":
     settings = get_settings()
     init_db()
 
-    from telegram.request import HTTPXRequest
+    request = HTTPXRequest(proxy=None)
 
-request = HTTPXRequest(proxy=None)
-
-app = Application.builder().token(settings.bot_token).request(request).build()
+    app = Application.builder().token(settings.bot_token).request(request).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(on_buy, pattern="^buy$"))
