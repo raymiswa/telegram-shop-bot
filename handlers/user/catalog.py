@@ -10,10 +10,12 @@ logger = logging.getLogger(__name__)
 
 
 async def show_catalog(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("🔥 show_catalog вызвана!")
     query = update.callback_query
     await query.answer()
     async with AsyncSessionLocal() as session:
         categories = await get_active_categories(session)
+    logger.info(f"✅ Найдено категорий: {len(categories)}")
     if not categories:
         await query.edit_message_text("😔 Каталог пуст. Загляните позже!")
         return
@@ -22,16 +24,20 @@ async def show_catalog(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=categories_keyboard(categories),
     )
+    logger.info("✅ show_catalog завершена успешно")
 
 
 async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    logger.info(f"🔥🔥🔥 show_category ВЫЗВАНА! callback_data={query.data}")
     await query.answer()
     data = query.data  # cat:ID or cat:ID:p:PAGE
 
     parts = data.split(":")
     category_id = int(parts[1])
     page = int(parts[3]) if len(parts) >= 4 else 1
+
+    logger.info(f"📦 Категория ID={category_id}, страница={page}")
 
     context.user_data["last_category_id"] = category_id
     context.user_data["last_page"] = page
@@ -40,7 +46,11 @@ async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
         products, total, total_pages = await get_products_by_category(
             session, category_id, page, config.PRODUCTS_PER_PAGE
         )
+    
+    logger.info(f"✅✅✅ Найдено товаров: {len(products)}, всего: {total}, страниц: {total_pages}")
+    
     if not products:
+        logger.warning("⚠️ Товары не найдены!")
         await query.edit_message_text(
             "😔 В этой категории нет товаров.",
             reply_markup=InlineKeyboardMarkup([
@@ -48,15 +58,25 @@ async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]),
         )
         return
+    
     text = f"🛍 *Товары* (стр. {page}/{total_pages}, всего {total}):"
-    await query.edit_message_text(
-        text,
-        parse_mode="Markdown",
-        reply_markup=products_keyboard(products, page, total_pages, category_id),
-    )
+    
+    logger.info(f"📤 Отправляю сообщение с {len(products)} товарами")
+    
+    try:
+        await query.edit_message_text(
+            text,
+            parse_mode="Markdown",
+            reply_markup=products_keyboard(products, page, total_pages, category_id),
+        )
+        logger.info("✅✅✅ Сообщение отправлено УСПЕШНО!")
+    except Exception as e:
+        logger.error(f"❌❌❌ ОШИБКА отправки сообщения: {e}")
+        raise
 
 
 async def show_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("🔥 show_product вызвана!")
     query = update.callback_query
     await query.answer()
     product_id = int(query.data.split(":")[1])
@@ -90,11 +110,13 @@ async def show_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown",
                 reply_markup=keyboard,
             )
+            logger.info("✅ show_product завершена (с фото)")
             return
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"⚠️ Не удалось отправить фото: {e}")
 
     await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
+    logger.info("✅ show_product завершена (без фото)")
 
 
 async def handle_qty(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -175,6 +197,7 @@ async def back_to_products(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def register(app):
+    logger.info("📝 Регистрация хендлеров каталога...")
     app.add_handler(CallbackQueryHandler(show_catalog, pattern="^catalog$"))
     app.add_handler(CallbackQueryHandler(show_category, pattern=r"^cat:\d+(:\w+:\d+)?$"))
     app.add_handler(CallbackQueryHandler(show_product, pattern=r"^prod:\d+$"))
@@ -182,3 +205,4 @@ def register(app):
     app.add_handler(CallbackQueryHandler(add_to_cart, pattern=r"^add:\d+$"))
     app.add_handler(CallbackQueryHandler(back_to_products, pattern="^back_prod$"))
     app.add_handler(CallbackQueryHandler(lambda u, c: u.callback_query.answer(), pattern="^noop$"))
+    logger.info("✅ Хендлеры каталога зарегистрированы!")
